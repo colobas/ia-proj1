@@ -1,4 +1,5 @@
 from search import *
+from copy import deepcopy as copy
 
 class Node:
     def __init__(self, id):
@@ -16,10 +17,8 @@ class Stack(Node):
     def __init__(self, id, size):
         Node.__init__(self,id)
         self.size = size
-        self.cas[]]
-        self.occup = 0
-    def __repr__(self):
-        return "S{0}".format(self.id)
+        self.casks = []
+        self.space_left = size
 
 class Exit(Node):
     def __init__(self):
@@ -33,13 +32,13 @@ class Cask:
     def __repr__(self):
         return "C{0}".format(self.id)
 
-class HCB(StateRepresentation):
-    def __init__(self, filename):
+class HCB:
+    def __init__(self, filename, goalCask):
         self.casks = dict()
         self.nodes = dict()
         self.nodes['EXIT'] = Exit()
-        self.CTS_pos = self.nodes['EXIT']
-
+        self.goalCask = goalCask
+        self.initial_state = HCBStateRepresentation(None, None, 0, None, self.nodes['EXIT'].id, None)
         lines = []
         try:
             with open(filename, "r") as f:
@@ -49,22 +48,23 @@ class HCB(StateRepresentation):
 
         for line in lines:
             l = line.split(" ")
-            if l[0] == 'C':
+            if l[0][0] == 'C':
                 cask_id = l[0][1:]
                 cask_length = int(l[1])
                 cask_weight = float(l[2])
                 self.casks[cask_id] = Cask(cask_id, cask_length, cask_weight)
 
-            elif l[0] == 'S':
-                stack_id = l[0][1:]
+            elif l[0][0] == 'S':
+                stack_id = l[0]
                 stack_size = int(l[1])
-                stack = Stack(stack_id, stack_size)
                 casks = l[2:]
                 for cask in casks:
-                    stack.casks.append(self.casks[cask[1:]])
-                self.nodes[str(stack)] = stack
+                    stack.casks.append(cask[1:])
 
-            elif l[0] == 'E':
+                self.initial_state.stacks[str(stack)] = stack
+                self.nodes[str(stack)] = Stack(stack_id, stack_size)
+
+            elif l[0][0] == 'E':
                 if not l[1] in self.nodes:
                     if l[1] != 'EXIT':
                         self.nodes[l[1]] = Node(l[1])
@@ -72,5 +72,73 @@ class HCB(StateRepresentation):
                     if l[2] != 'EXIT':
                         self.nodes[l[2]] = Node(l[2])
 
-                self.nodes[l[1]][l[2]] = self.nodes[l[2]] # add node with id = l[2] to neighbour list of node with id = l[1]
-                self.nodes[l[1]][l[2]] = self.nodes[l[1]] # vice versa
+                self.nodes[l[1]].neighbours[l[2]] = int(l[3]) # add node with id = l[2] to neighbour list of node with id = l[1]
+                self.nodes[l[2]].neighbours[l[1]] = int(l[3]) # vice versa
+
+        self.initial_state.hcb = self
+        self.initial_state.setup()
+
+class HCBStateRepresentation(StateRepresentation):
+    def __init__(self, parent, hcb, cost, stacks, CTS_pos, cask_on_CTS, goalCask, prev_operation):
+        self.parent = parent
+        self.operations = []
+        self.stacks = stacks
+        self.CTS_pos = CTS_pos
+        self.cask_on_CTS = cask_on_CTS
+        self.cost = cost
+        self.prev_operation = prev_operation
+        if hcb != None:
+            self.hcb = hcb
+            self.setup()
+
+    def checksol(self):
+        if cask_on_CTS == goalCask and CTS_pos = hcb.nodes['EXIT'].id :
+            return cost
+        else:
+            return -1
+
+    def setup(self): #definir operacoes possiveis deste nó
+        if type(self.CTS_pos) == Stack and self.cask_on_CTS != None and prev_operation != "load":
+            if self.CTS_pos.space_left >= self.cask_on_CTS.length: # if cask fits in stack
+                self.operations.append( (self.unload, "unload {0} {1} {2}".format(self.cask_on_CTS, 
+                                                            self.CTS_pos, 1 + hcb.casks[cask_on_CTS].weight)))
+        
+        elif type(hcb.nodes[self.CTS_pos]) == Stack and self.cask_on_CTS == None and prev_operation != "unload":
+            if hcb.nodes[self.CTS_pos].space_left != hcb.nodes[self.CTS_pos].size: # if stack isn't empty
+                self.operations.append( (self.load, "load {0} {1} {2}".format(self.cask_on_CTS, 
+                                                            self.CTS_pos, 1 + hcb.casks[cask_on_CTS].weight)))
+
+        for neighbour in hcb.nodes[self.CTS_pos].neighbours:
+            if neighbour != parent.CTS_pos:
+                def move_to_neighbour():
+                    return self.move(neighbour)
+                self.operations.append( (move_to_neighbour, "move {0} {1} {2}".format(self.CTS_pos, neighbour, 
+                                                            self.nodes[neighbour].id )))
+        
+    def move(self, to):
+        if self.cask_on_CTS == None:
+            next_cost = hcb.nodes[self.CTS_pos].neighbours[to]
+        else:
+            next_cost = (1 + self.cask_on_CTS.weight)*self.CTS_pos.neighbours[to]
+            next_CTS_pos = self.nodes[to].id
+
+        next_stacks = copy(self.stacks)
+        child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, next_CTS_pos, self.cask_on_CTS, "move")
+        return child
+ 
+    def unload(self):
+        next_cost = 1 + hcb.casks[cask_on_CTS].weight
+        next_stacks = copy(self.stacks)
+        next_CTS_pos = self.CTS_pos
+        next_stacks[self.CTS_pos].casks.append(self.cask_on_CTS)
+        next_stacks[self.CTS_pos].space_left -= hcb.nodes[cask_on_CTS].length
+        child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, self.CTS_pos, None, "unload")
+        return child
+        
+    def load(self):
+        next_cost = 1 + hcb.casks[cask_on_CTS].weight
+        next_stacks = copy(self.stacks)
+        next_cask_on_CTS = next_stacks[self.CTS_pos].casks.pop()
+        next_stacks[self.CTS_pos].space_left += hcb.casks[next_cask_on_CTS].length
+        child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, self.CTS_pos, next_cask_on_CTS, "load")
+        return child
