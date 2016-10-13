@@ -8,11 +8,6 @@ class Node:
     def __repr__(self):
         return "{0}".format(self.id)
 
-class Cask:
-    def __init__(self, weight, length):
-        self.weight = weight
-        self.length = length
-
 class Stack(Node):
     def __init__(self, id, size):
         Node.__init__(self,id)
@@ -79,53 +74,66 @@ class HCB:
         self.initial_state.setup()
 
 class HCBStateRepresentation(StateRepresentation):
-    def __init__(self, parent, hcb, cost, stacks, CTS_pos, cask_on_CTS, goalCask, prev_operation):
+    def __init__(self, parent, hcb, cost, stacks, CTS_pos, cask_on_CTS, prev_operation):
         self.parent = parent
         self.operations = []
         self.stacks = stacks
         self.CTS_pos = CTS_pos
         self.cask_on_CTS = cask_on_CTS
-        self.cost = cost
+        self.cost = cost # cost of the step taken to get here. we might not need this
         self.prev_operation = prev_operation
         if hcb != None:
             self.hcb = hcb
             self.setup()
 
     def checksol(self):
-        if cask_on_CTS == goalCask and CTS_pos = hcb.nodes['EXIT'].id :
+        if self.cask_on_CTS == hcb.goalCask and self.CTS_pos == hcb.nodes['EXIT'].id:
             return cost
         else:
             return -1
 
     def setup(self): #definir operacoes possiveis deste nó
-        if type(self.CTS_pos) == Stack and self.cask_on_CTS != None and prev_operation != "load":
+        if type(self.CTS_pos) == Stack and self.cask_on_CTS != None and prev_operation != "load": #undoing previous operation not allowed
             if self.CTS_pos.space_left >= self.cask_on_CTS.length: # if cask fits in stack
-                self.operations.append( (self.unload, "unload {0} {1} {2}".format(self.cask_on_CTS, 
-                                                            self.CTS_pos, 1 + hcb.casks[cask_on_CTS].weight)))
+                fcost = 1 + hcb.casks[cask_on_CTS].weigh
+                self.operations.append({
+                            'function' : self.unload, 
+                            'description' : "unload {0} {1} {2}".format(self.cask_on_CTS,self.CTS_pos, fcost), 
+                            'cost' : fcost
+                })
         
-        elif type(hcb.nodes[self.CTS_pos]) == Stack and self.cask_on_CTS == None and prev_operation != "unload":
+        elif type(hcb.nodes[self.CTS_pos]) == Stack and self.cask_on_CTS == None and prev_operation != "unload": #undoing previous operation not allowed
             if hcb.nodes[self.CTS_pos].space_left != hcb.nodes[self.CTS_pos].size: # if stack isn't empty
-                self.operations.append( (self.load, "load {0} {1} {2}".format(self.cask_on_CTS, 
-                                                            self.CTS_pos, 1 + hcb.casks[cask_on_CTS].weight)))
+                fcost = 1 + hcb.casks[cask_on_CTS].weight
+                self.operations.append({
+                            'function' : self.load, 
+                            'description' : "load {0} {1} {2}".format(self.cask_on_CTS, self.CTS_pos, fcost), 
+                            'cost' : fcost
+                })
 
         for neighbour in hcb.nodes[self.CTS_pos].neighbours:
-            if neighbour != parent.CTS_pos:
+            if not (neighbour == parent.CTS_pos and prev_operation == "move"): #moving back not allowed
+                fcost = hcb.nodes[self.CTS_pos].neighbours[to]
                 def move_to_neighbour():
                     return self.move(neighbour)
-                self.operations.append( (move_to_neighbour, "move {0} {1} {2}".format(self.CTS_pos, neighbour, 
-                                                            self.nodes[neighbour].id )))
-        
+                self.operations.append({
+                            'function' : move_to_neighbour, 
+                            'description' : "move {0} {1} {2}".format(self.CTS_pos, self.nodes[neighbour].id, fcost), 
+                            'cost' : fcost
+                })
+
     def move(self, to):
         if self.cask_on_CTS == None:
             next_cost = hcb.nodes[self.CTS_pos].neighbours[to]
         else:
             next_cost = (1 + self.cask_on_CTS.weight)*self.CTS_pos.neighbours[to]
-            next_CTS_pos = self.nodes[to].id
+        
+        next_CTS_pos = self.nodes[to].id
 
         next_stacks = copy(self.stacks)
         child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, next_CTS_pos, self.cask_on_CTS, "move")
         return child
- 
+
     def unload(self):
         next_cost = 1 + hcb.casks[cask_on_CTS].weight
         next_stacks = copy(self.stacks)
@@ -134,7 +142,7 @@ class HCBStateRepresentation(StateRepresentation):
         next_stacks[self.CTS_pos].space_left -= hcb.nodes[cask_on_CTS].length
         child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, self.CTS_pos, None, "unload")
         return child
-        
+
     def load(self):
         next_cost = 1 + hcb.casks[cask_on_CTS].weight
         next_stacks = copy(self.stacks)
