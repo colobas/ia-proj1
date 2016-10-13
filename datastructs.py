@@ -1,3 +1,5 @@
+from search import *
+
 class Node:
     def __init__(self, id):
         self.neighbours = dict() # keys = nodes, values = edge costs
@@ -14,13 +16,14 @@ class Stack(Node):
     def __init__(self, id, size):
         Node.__init__(self,id)
         self.size = size
-        self.casks = dict()
+        self.cas[]]
         self.occup = 0
     def __repr__(self):
         return "S{0}".format(self.id)
 
 class Exit(Node):
-    pass
+    def __init__(self):
+        Node.__init__(self, 'EXIT')
 
 class Cask:
     def __init__(self, id, weight, length):
@@ -30,10 +33,12 @@ class Cask:
     def __repr__(self):
         return "C{0}".format(self.id)
 
-class Graph:
+class HCB(StateRepresentation):
     def __init__(self, filename):
         self.casks = dict()
         self.nodes = dict()
+        self.nodes['EXIT'] = Exit()
+        self.CTS_pos = self.nodes['EXIT']
 
         lines = []
         try:
@@ -56,20 +61,16 @@ class Graph:
                 stack = Stack(stack_id, stack_size)
                 casks = l[2:]
                 for cask in casks:
-                    stack.casks[cask[1:]] = self.casks[cask[1:]]
+                    stack.casks.append(self.casks[cask[1:]])
                 self.nodes[str(stack)] = stack
 
             elif l[0] == 'E':
                 if not l[1] in self.nodes:
                     if l[1] != 'EXIT':
                         self.nodes[l[1]] = Node(l[1])
-                    else:
-                        self.nodes['EXIT'] = Exit()
                 if not l[2] in self.nodes:
                     if l[2] != 'EXIT':
                         self.nodes[l[2]] = Node(l[2])
-                    else:
-                        self.nodes['EXIT'] = Exit()
 
                 self.nodes[l[1]][l[2]] = self.nodes[l[2]] # add node with id = l[2] to neighbour list of node with id = l[1]
                 self.nodes[l[1]][l[2]] = self.nodes[l[1]] # vice versa

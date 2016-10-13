@@ -1,0 +1,2 @@
+class StateRepresentation:
+    pass
