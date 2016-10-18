@@ -62,40 +62,51 @@ class HCB:
 				lines = f.readlines()
 		except:
 			raise IOError
-
+		
+		cask_lines = []
+		stack_lines = []
+		edge_lines = []
 		for line in lines:
 			l = line.replace('\n', '').split(" ")
 			if l == '':
 				continue
-
-			if l[0][0] == 'C': # Creation of a cask. It will be stored in a dictionary, where its key is the id.
-				cask_id = l[0]
-				cask_length = int(l[1])
-				cask_weight = float(l[2])
-				self.casks[cask_id] = Cask(cask_id, cask_weight, cask_length)
-
-			elif l[0][0] == 'S':           # Creation of a Stack. It will be stored in the 'nodes' dictionary, in the HCB class, and in the 'stacks'
-				stack_id = l[0]        # dictionary of the initial_state StateRepresenation object. The position of the casks is (in general)
-				stack_size = int(l[1]) # different for each StateRepresentation and is only stored in those objects, so here we actually create
-				stack = Stack(stack_id, stack_size) # two equal Stack objects, placing one on the HCB and one on the StateRepresentation and we'll
-				casks = l[2:]                       # only append Casks to the latter.
-				for cask in casks:
-					stack.casks.append(cask)
-					stack.space_left-= self.casks[cask].length
-
-				self.initial_state.stacks[stack_id] = stack
-				self.nodes[stack_id] = Stack(stack_id, stack_size)
-
+			if l[0][0] == 'C':
+				cask_lines.append(l)
+			elif l[0][0] == 'S':
+				stack_lines.append(l)
 			elif l[0][0] == 'E':
-				if not l[1] in self.nodes:
-					if l[1] != 'EXIT':
-						self.nodes[l[1]] = Node(l[1])
-				if not l[2] in self.nodes:
-					if l[2] != 'EXIT':
-						self.nodes[l[2]] = Node(l[2])
+				edge_lines.append(l)
 
-				self.nodes[l[1]].neighbours[l[2]] = float(l[3]) # add node with id = l[2] to neighbour list of node with id = l[1]
-				self.nodes[l[2]].neighbours[l[1]] = float(l[3]) # vice versa
+
+
+		for l in cask_lines: # Creation of a cask. It will be stored in a dictionary, where its key is the id.
+			cask_id = l[0]
+			cask_length = int(l[1])
+			cask_weight = float(l[2])
+			self.casks[cask_id] = Cask(cask_id, cask_weight, cask_length)
+
+		for l in stack_lines:           # Creation of a Stack. It will be stored in the 'nodes' dictionary, in the HCB class, and in the 'stacks'
+			stack_id = l[0]        # dictionary of the initial_state StateRepresenation object. The position of the casks is (in general)
+			stack_size = int(l[1]) # different for each StateRepresentation and is only stored in those objects, so here we actually create
+			stack = Stack(stack_id, stack_size) # two equal Stack objects, placing one on the HCB and one on the StateRepresentation and we'll
+			casks = l[2:]                       # only append Casks to the latter.
+			for cask in casks:
+				stack.casks.append(cask)
+				stack.space_left-= self.casks[cask].length
+
+			self.initial_state.stacks[stack_id] = stack
+			self.nodes[stack_id] = Stack(stack_id, stack_size)
+
+		for l in edge_lines:
+			if not l[1] in self.nodes:
+				if l[1] != 'EXIT':
+					self.nodes[l[1]] = Node(l[1])
+			if not l[2] in self.nodes:
+				if l[2] != 'EXIT':
+					self.nodes[l[2]] = Node(l[2])
+
+			self.nodes[l[1]].neighbours[l[2]] = float(l[3]) # add node with id = l[2] to neighbour list of node with id = l[1]
+			self.nodes[l[2]].neighbours[l[1]] = float(l[3]) # vice versa
 
 		self.initial_state.hcb = self
 		self.initial_state.setup()
