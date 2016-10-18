@@ -130,10 +130,7 @@ class HCBStateRepresentation(StateRepresentation):
 		return self.__hash__() == other.__hash__()
 
 	def checksol(self):
-		if self.cask_on_CTS == self.hcb.goalCask and self.CTS_pos == self.hcb.nodes['EXIT'].id:
-			return self.fcost
-		else:
-			return -1
+		return self.cask_on_CTS == self.hcb.goalCask and self.CTS_pos == self.hcb.nodes['EXIT'].id
 
 # The names of the following group of methods are pretty self-explaining, but here are some remarks:
 #	-> The methods that check if a given operation is feasible have to check if this operation undoes the previous one, to avoid infinite loops
@@ -238,7 +235,7 @@ class HCBStateRepresentation(StateRepresentation):
 							'function' : self.unload, 
 							'description' : "unload {0} {1} {2}".format(self.cask_on_CTS, self.CTS_pos, fcost), 
 							'fcost' : fcost + self.fcost,
-							'gcost' : gcost
+							'gcost' : gcost,
 				}
 		
 		elif self.loadIsFeasible():
