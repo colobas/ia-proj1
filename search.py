@@ -41,9 +41,9 @@ def uniformCost(root_state):
 		todo = queue.pop(0)
 		queue_keys.pop(0)
 		cur_node = todo['function']()
-		print(cur_node)
-		for op in cur_node.operations:
-			print("\t"+cur_node.operations[op]['description'])
+#		print(cur_node)
+#		for op in cur_node.operations:
+#			print("\t"+cur_node.operations[op]['description'])
 
 		if cur_node.__hash__() in explored:
 			continue
