@@ -115,14 +115,14 @@ class HCBStateRepresentation(StateRepresentation):
 	"""
 	Class for the representation of States on the search algorithm. This class extends the 'interface' StateRepresentation.
 	"""
-	def __init__(self, parent, hcb, fcost, gcost, stacks, CTS_pos, cask_on_CTS, prev_operation):
+	def __init__(self, parent, hcb, cost, heuristic, stacks, CTS_pos, cask_on_CTS, prev_operation):
 		self.parent = parent # node through each we got here
 		self.operations = dict() # operations available to perform on this node
 		self.stacks = stacks # state of the stacks on this node (casks position)
 		self.CTS_pos = CTS_pos # position of the CTS. this is an Id, so we need to use it to index the dict in self.hcb.nodes
 		self.cask_on_CTS = cask_on_CTS # cask loaded on CTS. (None -> no cask). This is an Id, so we need to use it to index the dict in self.hcb.casks
-		self.fcost = fcost
-		self.gcost = gcost
+		self.cost = cost
+		self.heuristic = heuristic
 		self.prev_operation = prev_operation # operation that got us here
 		if hcb != None: # needed for the instatiation of the initial state, because we instatiate before we've read the file and built the map
 			self.hcb = hcb
@@ -185,12 +185,12 @@ class HCBStateRepresentation(StateRepresentation):
 		edge = self.hcb.nodes[self.CTS_pos].neighbours[neighbour]
 
 		if self.cask_on_CTS == None:
-			fcost = edge 
+			cost = edge 
 		else:
 			cask = self.getCaskOnCTS()
-			fcost = (1 + cask.weight)*edge
+			cost = (1 + cask.weight)*edge
 
-		return fcost
+		return cost
 
 # ----------------------------------- END OF GROUP OF SELF-EXPLAINING METHODS ------------------------------------
 
@@ -201,7 +201,7 @@ class HCBStateRepresentation(StateRepresentation):
 # that operation and then instantiate and return that node.
 
 	def move(self, to):
-		next_cost = self.getMoveCost(to) + self.fcost
+		next_cost = self.getMoveCost(to) + self.cost
 		next_CTS_pos = self.hcb.nodes[to].id
 		next_stacks = copy(self.stacks)
 
@@ -209,7 +209,7 @@ class HCBStateRepresentation(StateRepresentation):
 		return child
 
 	def unload(self):
-		next_cost = self.getUnloadCost() + self.fcost
+		next_cost = self.getUnloadCost() + self.cost
 		next_stacks = copy(self.stacks)
 		next_CTS_pos = self.CTS_pos
 		
@@ -224,7 +224,7 @@ class HCBStateRepresentation(StateRepresentation):
 		next_cask_on_CTS = next_stacks[self.CTS_pos].casks.pop()
 		cask = self.hcb.casks[next_cask_on_CTS]
 
-		next_cost = self.getLoadCost(cask) + self.fcost
+		next_cost = self.getLoadCost(cask) + self.cost
 		next_stacks[self.CTS_pos].space_left += self.hcb.casks[next_cask_on_CTS].length
 
 		child = HCBStateRepresentation(self, self.hcb, next_cost, 0, next_stacks, self.CTS_pos, next_cask_on_CTS, "load")
@@ -240,31 +240,31 @@ class HCBStateRepresentation(StateRepresentation):
 		"""
 		if self.unloadIsFeasible():
 			if self.caskFitsStack():
-				fcost = self.getUnloadCost()
-				gcost = 0
+				cost = self.getUnloadCost()
+				heuristic = 0
 				self.operations["unload"] = {
 							'function' : self.unload, 
-							'description' : "unload {0} {1} {2}".format(self.cask_on_CTS, self.CTS_pos, fcost), 
-							'fcost' : fcost + self.fcost,
-							'gcost' : gcost,
+							'description' : "unload {0} {1} {2}".format(self.cask_on_CTS, self.CTS_pos, cost), 
+							'cost' : cost + self.cost,
+							'heuristic' : heuristic,
 				}
 		
 		elif self.loadIsFeasible():
 			if self.stackHasCasks():
 				cask_on_CTS = self.getCaskOnThisStack() 
-				fcost = self.getLoadCost(cask_on_CTS)
-				gcost = 0
+				cost = self.getLoadCost(cask_on_CTS)
+				heuristic = 0
 				self.operations["load"] = {
 							'function' : self.load, 
-							'description' : "load {0} {1} {2}".format(cask_on_CTS.id, self.CTS_pos, fcost), 
-							'fcost' : fcost + self.fcost,
-							'gcost' : gcost
+							'description' : "load {0} {1} {2}".format(cask_on_CTS.id, self.CTS_pos, cost), 
+							'cost' : cost + self.cost,
+							'heuristic' : heuristic
 				}
 
 		for neighbour in self.hcb.nodes[self.CTS_pos].neighbours:
 			if self.moveIsFeasible(neighbour):
-				fcost = self.getMoveCost(neighbour)
-				gcost = 0
+				cost = self.getMoveCost(neighbour)
+				heuristic = 0
 
 				def move_to_neighbour(neighbour=neighbour): # trick to define a 'move' method for each feasible neighbour, without the need of
 					return self.move(neighbour)         # the search algorithm to pass it any arguments
@@ -272,8 +272,8 @@ class HCBStateRepresentation(StateRepresentation):
 				move_key = "move{0}".format(neighbour)
 				self.operations[move_key]= {
 							'function' : move_to_neighbour, 
-							'description' : "move {0} {1} {2}".format(self.CTS_pos, self.hcb.nodes[neighbour].id, fcost), 
-							'fcost' : fcost + self.fcost,
-							'gcost' : gcost
+							'description' : "move {0} {1} {2}".format(self.CTS_pos, self.hcb.nodes[neighbour].id, cost), 
+							'cost' : cost + self.cost,
+							'heuristic' : heuristic
 				}
 
