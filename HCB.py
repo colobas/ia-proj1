@@ -54,6 +54,7 @@ class HCB:
 		self.casks = dict()
 		self.nodes = dict()
 		self.nodes['EXIT'] = Exit()
+		self.paths = dict()
 		self.goalCask = goalCask
 		self.initial_state = HCBStateRepresentation(None, None, 0, 0, dict(), self.nodes['EXIT'].id, None, "")
 		lines = []
@@ -107,7 +108,9 @@ class HCB:
 
 			self.nodes[l[1]].neighbours[l[2]] = float(l[3]) # add node with id = l[2] to neighbour list of node with id = l[1]
 			self.nodes[l[2]].neighbours[l[1]] = float(l[3]) # vice versa
-
+		
+		for node in self.nodes.values():
+			self.paths[node.id] = dijkstra(self.nodes.values(), node)
 		self.initial_state.hcb = self
 		self.initial_state.setup()
 
@@ -231,7 +234,15 @@ class HCBStateRepresentation(StateRepresentation):
 		return child
 
 # ---------------------------------- END OF OPERATIONS IMPLEMENTATION ------------------------------------------------------
-
+	def heuristic(self):
+		if self.cask_on_CTS == self.hcb.goalCask:
+			return self.hcb.paths[self.CTS_pos]['EXIT'][0]
+		else:
+			for stack in self.stacks.values():
+				if goalCask in stack.casks:
+					goalStack = stack.id
+					break
+			return self.hcb.paths[self.CTS_pos][goalStack][0]
 
 	def setup(self):
 		"""
@@ -241,30 +252,25 @@ class HCBStateRepresentation(StateRepresentation):
 		if self.unloadIsFeasible():
 			if self.caskFitsStack():
 				cost = self.getUnloadCost()
-				heuristic = 0
 				self.operations["unload"] = {
 							'function' : self.unload, 
 							'description' : "unload {0} {1} {2}".format(self.cask_on_CTS, self.CTS_pos, cost), 
 							'cost' : cost + self.cost,
-							'heuristic' : heuristic,
 				}
 		
 		elif self.loadIsFeasible():
 			if self.stackHasCasks():
 				cask_on_CTS = self.getCaskOnThisStack() 
 				cost = self.getLoadCost(cask_on_CTS)
-				heuristic = 0
 				self.operations["load"] = {
 							'function' : self.load, 
 							'description' : "load {0} {1} {2}".format(cask_on_CTS.id, self.CTS_pos, cost), 
 							'cost' : cost + self.cost,
-							'heuristic' : heuristic
 				}
 
 		for neighbour in self.hcb.nodes[self.CTS_pos].neighbours:
 			if self.moveIsFeasible(neighbour):
 				cost = self.getMoveCost(neighbour)
-				heuristic = 0
 
 				def move_to_neighbour(neighbour=neighbour): # trick to define a 'move' method for each feasible neighbour, without the need of
 					return self.move(neighbour)         # the search algorithm to pass it any arguments
@@ -274,6 +280,30 @@ class HCBStateRepresentation(StateRepresentation):
 							'function' : move_to_neighbour, 
 							'description' : "move {0} {1} {2}".format(self.CTS_pos, self.hcb.nodes[neighbour].id, cost), 
 							'cost' : cost + self.cost,
-							'heuristic' : heuristic
 				}
 
+def dijkstra(_nodes, initial):
+	costs = {initial.id: (0,'')}
+	nodes = set(_nodes)
+
+	while nodes:
+		min_node = None
+		for node in nodes:
+			if node.id in costs:
+				if min_node is None:
+					min_node = node
+				elif costs[node.id][0] < costs[min_node.id][0]:
+					min_node = node
+
+		if min_node is None:
+			break
+
+		nodes.remove(min_node)
+		current_weight = costs[min_node.id][0]
+
+		for neighbour_id in min_node.neighbours:
+			weight = current_weight + min_node.neighbours[neighbour_id]
+			if neighbour_id not in costs or weight < costs[neighbour_id][0]:
+				costs[neighbour_id] = (weight, min_node.id)
+
+	return costs
