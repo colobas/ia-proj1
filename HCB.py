@@ -21,7 +21,16 @@ class Stack(Node):
 		self.casks = []
 		self.space_left = size
 	def __repr__(self):
-		return "{0} {1}".format(self.id, tuple(sorted(self.casks)))
+		return "{0} {1}".format(self.id, self.casks)
+
+	def __hash__(self):
+		return hash(self.__repr__())
+
+	def __key__(self):
+		return (self.size, (self.casks))
+
+	def __eq__(self, other):
+		return self.__key__() == other.__key__()
 
 class Exit(Node):
 	"""
@@ -56,7 +65,7 @@ class HCB:
 		self.nodes['EXIT'] = Exit()
 		self.paths = dict()
 		self.goalCask = goalCask
-		self.initial_state = HCBStateRepresentation(None, None, 0, 0, dict(), self.nodes['EXIT'].id, None, "")
+		self.initial_state = HCBStateRepresentation(None, None, 0, dict(), self.nodes['EXIT'].id, None, "")
 		lines = []
 		try:
 			with open(filename, "r") as f:
@@ -118,30 +127,26 @@ class HCBStateRepresentation(StateRepresentation):
 	"""
 	Class for the representation of States on the search algorithm. This class extends the 'interface' StateRepresentation.
 	"""
-	def __init__(self, parent, hcb, cost, heuristic, stacks, CTS_pos, cask_on_CTS, prev_operation):
+	def __init__(self, parent, hcb, cost, stacks, CTS_pos, cask_on_CTS, prev_operation):
 		self.parent = parent # node through each we got here
 		self.operations = dict() # operations available to perform on this node
 		self.stacks = stacks # state of the stacks on this node (casks position)
 		self.CTS_pos = CTS_pos # position of the CTS. this is an Id, so we need to use it to index the dict in self.hcb.nodes
 		self.cask_on_CTS = cask_on_CTS # cask loaded on CTS. (None -> no cask). This is an Id, so we need to use it to index the dict in self.hcb.casks
 		self.cost = cost
-		self.heuristic = heuristic
 		self.prev_operation = prev_operation # operation that got us here
 		if hcb != None: # needed for the instatiation of the initial state, because we instatiate before we've read the file and built the map
 			self.hcb = hcb
 			self.setup()
 
-	def __repr__(self):
-		s = ""
-		for st in sorted(self.stacks.items()):
-			s += "{0}".format(st)
-		return "{0} {1} {2}".format(s, self.CTS_pos, self.cask_on_CTS)
 
-	def __hash__(self):
-		return hash(self.__repr__())
+	def __key__(self):
+        	return (self.stacks, self.CTS_pos, self.cask_on_CTS)
 
 	def __eq__(self, other):
-		return self.__hash__() == other.__hash__()
+		if other == None:
+			return False
+		return  self.__key__() == other.__key__()
 
 	def checksol(self):
 		return self.cask_on_CTS == self.hcb.goalCask and self.CTS_pos == self.hcb.nodes['EXIT'].id
@@ -208,7 +213,7 @@ class HCBStateRepresentation(StateRepresentation):
 		next_CTS_pos = self.hcb.nodes[to].id
 		next_stacks = copy(self.stacks)
 
-		child = HCBStateRepresentation(self, self.hcb, next_cost, 0, next_stacks, next_CTS_pos, self.cask_on_CTS, "move{0}".format(to))
+		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, next_CTS_pos, self.cask_on_CTS, "move{0}".format(to))
 		return child
 
 	def unload(self):
@@ -219,7 +224,7 @@ class HCBStateRepresentation(StateRepresentation):
 		next_stacks[self.CTS_pos].casks.append(self.cask_on_CTS)
 		next_stacks[self.CTS_pos].space_left -= self.hcb.casks[self.cask_on_CTS].length
 
-		child = HCBStateRepresentation(self, self.hcb, next_cost, 0, next_stacks, self.CTS_pos, None, "unload")
+		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, self.CTS_pos, None, "unload")
 		return child
 
 	def load(self):
@@ -230,7 +235,7 @@ class HCBStateRepresentation(StateRepresentation):
 		next_cost = self.getLoadCost(cask) + self.cost
 		next_stacks[self.CTS_pos].space_left += self.hcb.casks[next_cask_on_CTS].length
 
-		child = HCBStateRepresentation(self, self.hcb, next_cost, 0, next_stacks, self.CTS_pos, next_cask_on_CTS, "load")
+		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, self.CTS_pos, next_cask_on_CTS, "load")
 		return child
 
 # ---------------------------------- END OF OPERATIONS IMPLEMENTATION ------------------------------------------------------
@@ -239,7 +244,7 @@ class HCBStateRepresentation(StateRepresentation):
 			return self.hcb.paths[self.CTS_pos]['EXIT'][0]
 		else:
 			for stack in self.stacks.values():
-				if goalCask in stack.casks:
+				if self.hcb.goalCask in stack.casks:
 					goalStack = stack.id
 					break
 			return self.hcb.paths[self.CTS_pos][goalStack][0]
