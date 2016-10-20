@@ -40,14 +40,6 @@ class StateRepresentation:
 
 		return (print_fringe, self.cost)
 
-def insert(seq, keys, item, keyfunc):
-	"""
-	Auxiliary function to efficiently insert objects in order in a sorted list
-	"""
-	k = keyfunc(item)  # get key
-	i = bisect_left(keys, k)  # determine where to insert item
-	keys.insert(i, k)  # insert key of item in keys list
-	seq.insert(i, item)  # insert the item itself in the corresponding spot	
 
 def uniformCost(root_state):
 	"""
@@ -59,8 +51,7 @@ def uniformCost(root_state):
 	returns (print_fringe, total_cost) where print_fringe is a list of strings, each containing the operations involved in the solution
 	"""
 	explored = [] # list of hashes of explored states
-	fringe_keys = [] # auxiliary structure to keep the fringe in order, by cost
-	fringe = [] # fringe of available moves to take, where the first to come out is the one with the smaller cost
+	fringe = dict() # fringe of available moves to take, where the first to come out is the one with the smaller cost
 
 	#initialize fringe with root operations
 
@@ -68,13 +59,13 @@ def uniformCost(root_state):
 	for operation in cur_node.operations:
 		node = cur_node.operations[operation]['function']() # instantiate the node obtained by performing the operation and add it to the dict, to avoid
 		cur_node.operations[operation]['node'] = node       # multiple instatiations
-		insert(fringe, fringe_keys, cur_node.operations[operation], keyfunc = lambda x: x['cost'])
+		fringe[node.__hash__()] = cur_node.operations[operation]
 
 	while len(fringe) != 0:
 
-		todo = fringe.pop(0) # get cheapest operation from the fringe
-		fringe_keys.pop(0)
+		todo = min(fringe.values(), key=lambda x: x['cost']) # get cheapest operation from the fringe
 		cur_node = todo['node'] # retrieve the node obtained by performing the operation
+		del fringe[cur_node.__hash__()]
 
 		if cur_node.__hash__() in explored: # don't go further if we already explored an equivalent state
 			continue
@@ -86,17 +77,16 @@ def uniformCost(root_state):
 				node = cur_node.operations[operation]['function']()
 				if not node.__hash__() in explored:
 					dont = False
-					for op in fringe:
-						if op['node'].__hash__() == node.__hash__(): # if there's an equivalent state in the fringe, we only add this if
-							if op['cost'] > node.cost:           # has a smaller cost
-								fringe_keys.pop(fringe.index(op))
-								fringe.remove(op)
-							else:
-								dont = True
-							break
+					if node.__hash__() in fringe:
+						op = fringe[node.__hash__()]	# if there's an equivalent state in the fringe, we only add this if it
+						if op['cost'] > node.cost:      # has a smaller cost
+							del fringe[op['node'].__hash__()]
+						else:
+							dont = True
+						break
 					if not dont:
 						cur_node.operations[operation]['node'] = node
-						insert(fringe, fringe_keys, cur_node.operations[operation], keyfunc = lambda x: x['cost'])
+						fringe[node.__hash__()] = cur_node.operations[operation]
 
 		explored.append(cur_node.__hash__())
 
