@@ -238,10 +238,7 @@ class HCBStateRepresentation(StateRepresentation):
 		if self.cask_on_CTS == self.hcb.goalCask:
 			return self.hcb.paths[self.CTS_pos]['EXIT'][0]
 		else:
-			for stack in self.stacks.values():
-				if self.hcb.goalCask in stack.casks:
-					goalStack = stack.id
-					break
+			goalStack = self.casks[self.hcb.goalCask][0]
 			return self.hcb.paths[self.CTS_pos][goalStack][0]
 
 	def setup(self):
