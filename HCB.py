@@ -13,7 +13,7 @@ class Node:
 
 class Stack(Node):
 	"""
-	Extends the Node class to implement a Stack
+	Extends the Node class to implement a Stack. In fact it just adds a field corresponding to the Stack's size
 	"""
 	def __init__(self, id, size):
 		Node.__init__(self,id)
@@ -22,7 +22,7 @@ class Stack(Node):
 
 class Exit(Node):
 	"""
-	Extends the Node class to implement an Exit point
+	Extends the Node class to implement an Exit point.
 	"""
 	def __init__(self):
 		Node.__init__(self, 'EXIT')
@@ -112,8 +112,8 @@ class HCBStateRepresentation(StateRepresentation):
 	def __init__(self, parent, hcb, cost, stacks, casks, CTS_pos, cask_on_CTS, prev_operation, isRoot):
 		self.parent = parent # node through each we got here
 		self.operations = dict() # operations available to perform on this node
-		self.stacks = stacks # state of the stacks on this node
-		self.casks = casks
+		self.stacks = stacks # dict to hold the state of the stacks on this node. for each stack there's a tuple -> (space left on cask, cask on top of the stack)
+		self.casks = casks # dict that holds the state of the casks. for each cask there's a tuple -> (stack the cask is on, cask below this cask)
 		self.CTS_pos = CTS_pos # position of the CTS. this is an Id, so we need to use it to index the dict in self.hcb.nodes
 		self.cask_on_CTS = cask_on_CTS # cask loaded on CTS. (None -> no cask). This is an Id, so we need to use it to index the dict in self.hcb.casks
 		self.cost = cost
@@ -131,19 +131,29 @@ class HCBStateRepresentation(StateRepresentation):
 			return False
 		return  self.__key__() == other.__key__()
 
-	def checksol(self):
+	def checksol(self): # method to check whether this state is a solution
 		return self.cask_on_CTS == self.hcb.goalCask and self.CTS_pos == self.hcb.nodes['EXIT'].id
 
 	def doUnload(self, stack_id, cask_id, stacks, casks):
-		casks[cask_id] = (stack_id, stacks[stack_id][1])
-		space_left = stacks[stack_id][0] - self.hcb.casks[cask_id].length
+		"""
+		Handle the manipulation of the stacks and casks data structures upon the unloading of a cask. stacks and casks are passed
+		as arguments because this method is called to prepare the data structures of the State Representation obtained by performing
+		this action
+		"""
+		casks[cask_id] = (stack_id, stacks[stack_id][1]) #put this cask on top of the stack. put below it the cask that was previously on top, or None if the Stack was empty
+		space_left = stacks[stack_id][0] - self.hcb.casks[cask_id].length #update the space left on that stack
 		stacks[stack_id] = (space_left, cask_id)
 
 	def doLoad(self, stack_id, stacks, casks):
-		top_cask_id = stacks[stack_id][1]
-		space_left = stacks[stack_id][0] + self.hcb.casks[top_cask_id].length
-		stacks[stack_id] = (space_left, casks[top_cask_id][1])
-		casks[top_cask_id] = ('CTS', None)
+		"""
+		Handle the manipulation of the stacks and casks data structures upon the unloading of a cask. stacks and casks are passed
+		as arguments because this method is called to prepare the data structures of the State Representation obtained by performing
+		this action
+		"""
+		top_cask_id = stacks[stack_id][1] #get cask on top of the stack
+		space_left = stacks[stack_id][0] + self.hcb.casks[top_cask_id].length #update the space left on the stack
+		stacks[stack_id] = (space_left, casks[top_cask_id][1]) #put the cask below this one on top of the CTS
+		casks[top_cask_id] = ('CTS', None) #put the cask on top of the CTS
 		return top_cask_id
 
 # The names of the following group of methods are pretty self-explaining, but here are some remarks:
