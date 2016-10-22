@@ -74,9 +74,6 @@ def uniformCost(root_state):
 		fringe_keys.pop(0)
 		cur_node = todo['node'] # retrieve the node obtained by performing the operation
 
-		if cur_node in explored: # don't go further if we already explored an equivalent state
-			continue
-
 		if cur_node.checksol(): # check if the state is a solution to the problem
 			return cur_node.backtrack_sol(root_state)
 		else:
@@ -128,15 +125,12 @@ def AStar(root_state):
 		fringe_keys.pop(0)
 		cur_node = todo['node'] # retrieve the node obtained by performing the operation
 
-		if cur_node in explored: # don't go further if we already explored an equivalent state
-			continue
-
 		if cur_node.checksol(): # check if the state is a solution to the problem
 			return cur_node.backtrack_sol(root_state)
 		else:
 			for operation in cur_node.operations:
 				node = cur_node.operations[operation]['function']()
-				if not node in explored:
+				if not node.__key__() in explored:
 					dont = False
 					for op in fringe:
 						if op['node'] == node: # if there's an equivalent state in the fringe, we only add this if
@@ -150,6 +144,6 @@ def AStar(root_state):
 						cur_node.operations[operation]['node'] = node
 						insert(fringe, fringe_keys, cur_node.operations[operation], keyfunc = lambda x: x['cost'])
 
-		explored.append(cur_node)
+		explored.append(cur_node.__key__())
 
 	return None, None

@@ -122,10 +122,11 @@ class HCBStateRepresentation(StateRepresentation):
 		if not isRoot: # needed for the instatiation of the initial state, because we instatiate before we've read the file and built the map
 			self.setup()
 
-
+	
 	def __key__(self):
         	return (self.stacks, self.casks, self.CTS_pos, self.cask_on_CTS)
 
+	
 	def __eq__(self, other):
 		if other == None:
 			return False
@@ -212,7 +213,7 @@ class HCBStateRepresentation(StateRepresentation):
 # The following group of methods implements the actual operations to be performed on this node. They're only ever called after they've been deemed feasible,
 # so there's no feasibility checks inside them. They each compute the appropriate arguments to instantiate the StateRepresentation of the node created by performing
 # that operation and then instantiate and return that node.
-
+	
 	def move(self, to):
 		next_cost = self.getMoveCost(to) + self.cost
 		next_CTS_pos = self.hcb.nodes[to].id
