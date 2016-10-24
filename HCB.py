@@ -100,7 +100,7 @@ class HCB:
 
 			self.nodes[l[1]].neighbours[l[2]] = float(l[3]) # add node with id = l[2] to neighbour list of node with id = l[1]
 			self.nodes[l[2]].neighbours[l[1]] = float(l[3]) # vice versa
-		
+
 		for node in self.nodes.values():
 			self.paths[node.id] = dijkstra(self.nodes.values(), node)
 		self.initial_state.setup()
@@ -109,6 +109,7 @@ class HCBStateRepresentation(StateRepresentation):
 	"""
 	Class for the representation of States on the search algorithm. This class extends the 'interface' StateRepresentation.
 	"""
+	
 	def __init__(self, parent, hcb, cost, stacks, casks, CTS_pos, cask_on_CTS, prev_operation, isRoot):
 		self.parent = parent # node through each we got here
 		self.operations = dict() # operations available to perform on this node
@@ -122,15 +123,24 @@ class HCBStateRepresentation(StateRepresentation):
 		if not isRoot: # needed for the instatiation of the initial state, because we instatiate before we've read the file and built the map
 			self.setup()
 
-	
-	def __key__(self):
-        	return (self.stacks, self.casks, self.CTS_pos, self.cask_on_CTS)
 
-	
+	def __key__(self):
+        	return (self.CTS_pos, self.cask_on_CTS, self.casks, self.stacks)
+
+
 	def __eq__(self, other):
 		if other == None:
 			return False
-		return  self.__key__() == other.__key__()
+		if self.CTS_pos != other.CTS_pos:
+			return False
+		if self.cask_on_CTS != other.cask_on_CTS:
+			return False
+		if self.casks != other.casks:
+			return False
+		if self.stacks != other.stacks:
+			return False
+
+		return True
 
 	def checksol(self): # method to check whether this state is a solution
 		return self.cask_on_CTS == self.hcb.goalCask and self.CTS_pos == self.hcb.nodes['EXIT'].id
@@ -251,6 +261,7 @@ class HCBStateRepresentation(StateRepresentation):
 		else:
 			goalStack = self.casks[self.hcb.goalCask][0]
 			return self.hcb.paths[self.CTS_pos][goalStack][0]
+
 
 	def setup(self):
 		"""

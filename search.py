@@ -79,7 +79,7 @@ def uniformCost(root_state):
 		else:
 			for operation in cur_node.operations:
 				node = cur_node.operations[operation]['function']()
-				if not node in explored:
+				if not node.__key__() in explored:
 					dont = False
 					for op in fringe:
 						if op['node'] == node: # if there's an equivalent state in the fringe, we only add this if
@@ -93,7 +93,7 @@ def uniformCost(root_state):
 						cur_node.operations[operation]['node'] = node
 						insert(fringe, fringe_keys, cur_node.operations[operation], keyfunc = lambda x: x['cost'])
 
-		explored.append(cur_node)
+		explored.append(cur_node.__key__())
 
 	return None, None
 
