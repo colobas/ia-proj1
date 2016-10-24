@@ -1,5 +1,4 @@
 from search import *
-from copy import copy
 
 class Node:
 	"""
@@ -35,7 +34,6 @@ class Cask:
 		self.id = id
 		self.weight = weight
 		self.length = length
-
 class HCB:
 	"""
 	Defines the static part of the problem -> The HCB graph and the data structures where information about the casks and nodes is stored.
@@ -51,7 +49,7 @@ class HCB:
 		self.nodes['EXIT'] = Exit()
 		self.paths = dict()
 		self.goalCask = goalCask
-		self.initial_state = HCBStateRepresentation(None, self, 0, dict(), dict(), self.nodes['EXIT'].id, None, "", True)
+		stacks = []
 		lines = []
 		try:
 			with open(filename, "r") as f:
@@ -85,10 +83,11 @@ class HCB:
 			stack_id = l[0]
 			stack_size = int(l[1])
 			self.nodes[stack_id] = Stack(stack_id, stack_size)
-			self.initial_state.stacks[stack_id] = (stack_size, None)
 			casks = l[2:]
+			space_left = stack_size
 			for cask in casks:
-				self.initial_state.doUnload(stack_id, cask, self.initial_state.stacks, self.initial_state.casks)
+				space_left -= self.casks[cask].length
+			stacks.append((stack_id, space_left, tuple(casks)))
 
 		for l in edge_lines:
 			if not l[1] in self.nodes:
@@ -103,69 +102,78 @@ class HCB:
 
 		for node in self.nodes.values():
 			self.paths[node.id] = dijkstra(self.nodes.values(), node)
-		self.initial_state.setup()
+
+		self.initial_state = HCBStateRepresentation(None, self, 0, tuple(stacks), 'EXIT', None, '')
 
 class HCBStateRepresentation(StateRepresentation):
 	"""
 	Class for the representation of States on the search algorithm. This class extends the 'interface' StateRepresentation.
 	"""
 	
-	def __init__(self, parent, hcb, cost, stacks, casks, CTS_pos, cask_on_CTS, prev_operation, isRoot):
+	def __init__(self, parent, hcb, cost, stacks, CTS_pos, cask_on_CTS, prev_operation):
+		self.stacks = stacks # tuple of stack tuples. each stack tuple -> (id, space_left, (Cx,Cy,Cz))
 		self.parent = parent # node through each we got here
-		self.operations = dict() # operations available to perform on this node
-		self.stacks = stacks # dict to hold the state of the stacks on this node. for each stack there's a tuple -> (space left on cask, cask on top of the stack)
-		self.casks = casks # dict that holds the state of the casks. for each cask there's a tuple -> (stack the cask is on, cask below this cask)
 		self.CTS_pos = CTS_pos # position of the CTS. this is an Id, so we need to use it to index the dict in self.hcb.nodes
 		self.cask_on_CTS = cask_on_CTS # cask loaded on CTS. (None -> no cask). This is an Id, so we need to use it to index the dict in self.hcb.casks
 		self.cost = cost
 		self.prev_operation = prev_operation # operation that got us here
 		self.hcb = hcb
-		if not isRoot: # needed for the instatiation of the initial state, because we instatiate before we've read the file and built the map
-			self.setup()
-
+		self.initial_state = None
 
 	def __key__(self):
-        	return (self.CTS_pos, self.cask_on_CTS, self.casks, self.stacks)
+		return (self.stacks, self.CTS_pos, self.cask_on_CTS)
 
+	def __hash__(self):
+		return hash(self.__key__())
 
 	def __eq__(self, other):
 		if other == None:
 			return False
 		if self.CTS_pos != other.CTS_pos:
 			return False
-		if self.cask_on_CTS != other.cask_on_CTS:
+		elif self.cask_on_CTS != other.cask_on_CTS:
 			return False
-		if self.casks != other.casks:
+		elif self.stacks != other.stacks:
 			return False
-		if self.stacks != other.stacks:
-			return False
-
 		return True
 
 	def checksol(self): # method to check whether this state is a solution
 		return self.cask_on_CTS == self.hcb.goalCask and self.CTS_pos == self.hcb.nodes['EXIT'].id
 
-	def doUnload(self, stack_id, cask_id, stacks, casks):
+	def doUnload(self, stack_id, cask_id):
 		"""
 		Handle the manipulation of the stacks and casks data structures upon the unloading of a cask. stacks and casks are passed
 		as arguments because this method is called to prepare the data structures of the State Representation obtained by performing
 		this action
 		"""
-		casks[cask_id] = (stack_id, stacks[stack_id][1]) #put this cask on top of the stack. put below it the cask that was previously on top, or None if the Stack was empty
-		space_left = stacks[stack_id][0] - self.hcb.casks[cask_id].length #update the space left on that stack
-		stacks[stack_id] = (space_left, cask_id)
+		_stacks = list(self.stacks)
 
-	def doLoad(self, stack_id, stacks, casks):
+		for i in range(0,len(_stacks)):
+			if _stacks[i] == stack_id:
+				space_left = _stacks[i][1] - self.hcb.casks[cask_id].length
+				_stacks[i] = (stack_id, space_left, tuple(list(_stacks[i][2]).append(cask_id)))
+				break
+
+		return tuple(_stacks)
+
+
+	def doLoad(self, stack_id):
 		"""
 		Handle the manipulation of the stacks and casks data structures upon the unloading of a cask. stacks and casks are passed
 		as arguments because this method is called to prepare the data structures of the State Representation obtained by performing
 		this action
 		"""
-		top_cask_id = stacks[stack_id][1] #get cask on top of the stack
-		space_left = stacks[stack_id][0] + self.hcb.casks[top_cask_id].length #update the space left on the stack
-		stacks[stack_id] = (space_left, casks[top_cask_id][1]) #put the cask below this one on top of the CTS
-		casks[top_cask_id] = ('CTS', None) #put the cask on top of the CTS
-		return top_cask_id
+		_stacks = list(self.stacks)
+		for i in range(0, len(_stacks)):
+			if _stacks[i][0] == stack_id:
+				casks = list(_stacks[i][2])
+				cask = casks.pop()
+				space_left = _stacks[i][1] + self.hcb.casks[cask].length
+				_stacks[i] = (stack_id, space_left, tuple(casks))
+				break
+
+		return tuple(_stacks), cask
+
 
 # The names of the following group of methods are pretty self-explaining, but here are some remarks:
 #	-> The methods that check if a given operation is feasible have to check if this operation undoes the previous one, to avoid infinite loops
@@ -177,33 +185,34 @@ class HCBStateRepresentation(StateRepresentation):
 #	feasibility checks inside them
 
 	def unloadIsFeasible(self):
-		return type(self.hcb.nodes[self.CTS_pos]) == Stack and self.cask_on_CTS != None and self.prev_operation != "load"
+		return type(self.hcb.nodes[self.CTS_pos]) == Stack and self.cask_on_CTS != None and self.prev_operation != ord("L")
 
 	def caskFitsStack(self):
-		return self.stacks[self.CTS_pos][0] >= self.hcb.casks[self.cask_on_CTS].length
+		for stack in self.stacks:
+			if stack[0] == self.CTS_pos:
+				return stack[1] >= self.hcb.casks[self.cask_on_CTS].length
 
 	def loadIsFeasible(self):
-		return type(self.hcb.nodes[self.CTS_pos]) == Stack and self.cask_on_CTS == None and self.prev_operation != "unload"
+		return type(self.hcb.nodes[self.CTS_pos]) == Stack and self.cask_on_CTS == None and self.prev_operation != ord("U")
 
 	def stackHasCasks(self):
-		return self.stacks[self.CTS_pos][0] < self.hcb.nodes[self.CTS_pos].size
+		for stack in self.stacks:
+			if stack[0] == self.CTS_pos:
+				return stack[1] < self.hcb.nodes[self.CTS_pos].size
 
 	def moveIsFeasible(self, neighbour):
-		return (self.parent == None) or not ((neighbour == self.parent.CTS_pos) and "move" in self.prev_operation)
+		return (self.parent == None) or not ((neighbour == self.parent.CTS_pos) and self.prev_operation) == ord("M")
 
 	def getCaskOnThisStack(self):
-		cask_id = self.stacks[self.CTS_pos][1]
-		return self.hcb.casks[cask_id]
-
-	def getCaskOnCTS(self):
-		return self.hcb.casks[self.cask_on_CTS]
+		for stack in self.stacks:
+			if stack[0] == self.CTS_pos:
+				return stack[2][0]
 
 	def getLoadCost(self, cask):
-		return 1 + cask.weight
+		return 1 + self.hcb.casks[cask].weight
 
 	def getUnloadCost(self):
-		cask = self.getCaskOnCTS()
-		return 1 + cask.weight
+		return 1 + self.hcb.casks[self.cask_on_CTS].weight
 
 	def getMoveCost(self, neighbour):
 		edge = self.hcb.nodes[self.CTS_pos].neighbours[neighbour]
@@ -211,11 +220,18 @@ class HCBStateRepresentation(StateRepresentation):
 		if self.cask_on_CTS == None:
 			cost = edge 
 		else:
-			cask = self.getCaskOnCTS()
-			cost = (1 + cask.weight)*edge
+			cost = self.getUnloadCost()*edge
 
 		return cost
 
+	def getMoveDescription(self):
+		cost = self.cost - self.parent.cost
+		if self.prev_operation == ord("M"):
+			return "move {} {} {}".format(self.parent.CTS_pos, self.CTS_pos, cost)
+		elif self.prev_operation == ord("L"):
+			return "load {} {} {}".format(self.cask_on_CTS, self.CTS_pos, cost)
+		elif self.prev_operation == ord("U"):
+			return "unload {} {} {}".format(self.parent.cask_on_CTS, self.CTS_pos, cost)
 # ----------------------------------- END OF GROUP OF SELF-EXPLAINING METHODS ------------------------------------
 
 
@@ -226,32 +242,21 @@ class HCBStateRepresentation(StateRepresentation):
 	
 	def move(self, to):
 		next_cost = self.getMoveCost(to) + self.cost
-		next_CTS_pos = self.hcb.nodes[to].id
-		next_stacks = copy(self.stacks)
-		next_casks = copy(self.casks)
-		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, next_casks, next_CTS_pos, self.cask_on_CTS, "move{0}".format(to), False)
+		next_CTS_pos = to
+		next_stacks = tuple(self.stacks)
+		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, next_CTS_pos, self.cask_on_CTS, ord("M"))
 		return child
 
 	def unload(self):
 		next_cost = self.getUnloadCost() + self.cost
-		next_stacks = copy(self.stacks)
-		next_casks = copy(self.casks)
-		next_CTS_pos = self.CTS_pos
-		
-		self.doUnload(self.CTS_pos, self.cask_on_CTS, next_stacks, next_casks)
-
-		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, next_casks, self.CTS_pos, None, "unload", False)
+		next_stacks = self.doUnload(self.CTS_pos, self.cask_on_CTS)
+		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, self.CTS_pos, None, ord("U"))
 		return child
 
 	def load(self):
-		next_stacks = copy(self.stacks)
-		next_casks = copy(self.casks)
-		next_cask_on_CTS_id = self.doLoad(self.CTS_pos, next_stacks, next_casks)
-		next_cask_on_CTS = self.hcb.casks[next_cask_on_CTS_id]
-
+		next_stacks, next_cask_on_CTS = self.doLoad(self.CTS_pos)
 		next_cost = self.getLoadCost(next_cask_on_CTS) + self.cost
-
-		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, next_casks, self.CTS_pos, next_cask_on_CTS_id, "load", False)
+		child = HCBStateRepresentation(self, self.hcb, next_cost, next_stacks, self.CTS_pos, next_cask_on_CTS, ord("L"))
 		return child
 
 # ---------------------------------- END OF OPERATIONS IMPLEMENTATION ------------------------------------------------------
@@ -262,30 +267,21 @@ class HCBStateRepresentation(StateRepresentation):
 			goalStack = self.casks[self.hcb.goalCask][0]
 			return self.hcb.paths[self.CTS_pos][goalStack][0]
 
-
-	def setup(self):
+	def expand(self):
 		"""
 		This method computes the operations that can be performed on this node. It stores the corresponding method on the self.operations dict, as well
 		as their description and costs.
 		"""
+		children = []
 		if self.unloadIsFeasible():
 			if self.caskFitsStack():
 				cost = self.getUnloadCost()
-				self.operations["unload"] = {
-					'function' : self.unload, 
-					'description' : "unload {0} {1} {2}".format(self.cask_on_CTS, self.CTS_pos, cost), 
-					'cost' : cost + self.cost,
-				}
-		
+				children.append( (self.unload(), cost + self.cost))
 		elif self.loadIsFeasible():
 			if self.stackHasCasks():
-				cask_on_CTS = self.getCaskOnThisStack() 
+				cask_on_CTS = self.getCaskOnThisStack()
 				cost = self.getLoadCost(cask_on_CTS)
-				self.operations["load"] = {
-					'function' : self.load, 
-					'description' : "load {0} {1} {2}".format(cask_on_CTS.id, self.CTS_pos, cost), 
-					'cost' : cost + self.cost,
-				}
+				children.append( (self.load(), cost + self.cost))
 
 		for neighbour in self.hcb.nodes[self.CTS_pos].neighbours:
 			if self.moveIsFeasible(neighbour):
@@ -294,12 +290,9 @@ class HCBStateRepresentation(StateRepresentation):
 				def move_to_neighbour(neighbour=neighbour): # trick to define a 'move' method for each feasible neighbour, without the need of
 					return self.move(neighbour)         # the search algorithm to pass it any arguments
 
-				move_key = "move{0}".format(neighbour)
-				self.operations[move_key]= {
-					'function' : move_to_neighbour, 
-					'description' : "move {0} {1} {2}".format(self.CTS_pos, self.hcb.nodes[neighbour].id, cost), 
-					'cost' : cost + self.cost,
-				}
+				children.append( (move_to_neighbour(), cost + self.cost))
+		return children
+
 
 def dijkstra(_nodes, initial):
 	costs = {initial.id: (0,'')}
