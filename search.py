@@ -46,16 +46,35 @@ def uniformCost(root_state):
 		explored.add(cur_node.__key__())
 		for (child, child_cost) in cur_node.expand():
 			if child.__key__() not in explored:
-				inserted = False
-				for i in range(1, fringe.currentSize):
-					if fringe.heapList[i][0] == child:
-						inserted = True
-						if fringe.heapList[i][1] > child_cost:
-							fringe.heapList[i] = (child,child_cost)
-							fringe.percDown(i)
-							break
-				if not inserted:
-					fringe.insert((child,child_cost))
+				fringe.insert((child,child_cost))
+
+
+	return None, None
+
+def AStar(root_state):
+	"""
+	This function implements the Uniform Cost algorithm. It is an uninformed search algorithm, so it only takes each node's cost into account.
+	A fringe of possible operations is kept, ordered by cost. The operation taken from the fringe is always the one with the smallest cost available.
+	That operation is then performed, which gives us a new node. The new node is checked to see if it is a solution and in that case the algorithm is halted
+	and the solution is returned. In the case that the new node isn't a solution, its operations are explored and put inserted into the fringe.
+
+	returns (print_queue, total_cost) where print_queue is a list of strings, each containing the operations involved in the solution
+	"""
+	fringe = TupleBinHeap() # fringe of available nodes to expand, where the first to come out is the one with the smaller cost
+	explored = set() 
+	fringe.insert((root_state,0))
+	while fringe.currentSize != 0:
+
+		cur_node = fringe.pop()[0]  # get cheapest node to visit from the fringe
+
+		if cur_node.checksol(): # check if the state is a solution to the problem
+			return cur_node.backtrack_sol(root_state)
+		
+
+		explored.add(cur_node.__key__())
+		for (child, child_cost) in cur_node.expand():
+			if child.__key__() not in explored:
+				fringe.insert((child,child_cost+child.heuristic()))
 
 
 	return None, None

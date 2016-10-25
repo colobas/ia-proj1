@@ -109,7 +109,6 @@ class HCBStateRepresentation(StateRepresentation):
 	"""
 	Class for the representation of States on the search algorithm. This class extends the 'interface' StateRepresentation.
 	"""
-	
 	def __init__(self, parent, hcb, cost, stacks, CTS_pos, cask_on_CTS, prev_operation):
 		self.stacks = stacks # tuple of stack tuples. each stack tuple -> (id, space_left, (Cx,Cy,Cz))
 		self.parent = parent # node through each we got here
@@ -127,15 +126,7 @@ class HCBStateRepresentation(StateRepresentation):
 		return hash(self.__key__())
 
 	def __eq__(self, other):
-		if other == None:
-			return False
-		if self.CTS_pos != other.CTS_pos:
-			return False
-		elif self.cask_on_CTS != other.cask_on_CTS:
-			return False
-		elif self.stacks != other.stacks:
-			return False
-		return True
+		return self.__hash__() == other.__hash__()
 
 	def checksol(self): # method to check whether this state is a solution
 		return self.cask_on_CTS == self.hcb.goalCask and self.CTS_pos == self.hcb.nodes['EXIT'].id
@@ -149,9 +140,14 @@ class HCBStateRepresentation(StateRepresentation):
 		_stacks = list(self.stacks)
 
 		for i in range(0,len(_stacks)):
-			if _stacks[i] == stack_id:
+			if _stacks[i][0] == stack_id:
 				space_left = _stacks[i][1] - self.hcb.casks[cask_id].length
-				_stacks[i] = (stack_id, space_left, tuple(list(_stacks[i][2]).append(cask_id)))
+				if len(_stacks[i][2]) > 0:
+					casks = list(_stacks[i][2])
+					casks.append(cask_id)
+					_stacks[i] = (stack_id, space_left, tuple(casks))
+				else:
+					_stacks[i] = (stack_id, space_left, tuple([cask_id]))
 				break
 
 		return tuple(_stacks)
@@ -199,9 +195,8 @@ class HCBStateRepresentation(StateRepresentation):
 		for stack in self.stacks:
 			if stack[0] == self.CTS_pos:
 				return stack[1] < self.hcb.nodes[self.CTS_pos].size
-
 	def moveIsFeasible(self, neighbour):
-		return (self.parent == None) or not ((neighbour == self.parent.CTS_pos) and self.prev_operation) == ord("M")
+		return (self.parent == None) or not ((neighbour == self.parent.CTS_pos) and self.prev_operation == ord("M"))
 
 	def getCaskOnThisStack(self):
 		for stack in self.stacks:
@@ -239,7 +234,7 @@ class HCBStateRepresentation(StateRepresentation):
 # The following group of methods implements the actual operations to be performed on this node. They're only ever called after they've been deemed feasible,
 # so there's no feasibility checks inside them. They each compute the appropriate arguments to instantiate the StateRepresentation of the node created by performing
 # that operation and then instantiate and return that node.
-	
+
 	def move(self, to):
 		next_cost = self.getMoveCost(to) + self.cost
 		next_CTS_pos = to
@@ -264,34 +259,31 @@ class HCBStateRepresentation(StateRepresentation):
 		if self.cask_on_CTS == self.hcb.goalCask:
 			return self.hcb.paths[self.CTS_pos]['EXIT'][0]
 		else:
-			goalStack = self.casks[self.hcb.goalCask][0]
-			return self.hcb.paths[self.CTS_pos][goalStack][0]
+			for stack in self.stacks:
+				if self.hcb.goalCask in stack[2]:
+					goalStack = stack[0]
+					return self.hcb.paths[self.CTS_pos][goalStack][0]
 
 	def expand(self):
 		"""
 		This method computes the operations that can be performed on this node. It stores the corresponding method on the self.operations dict, as well
 		as their description and costs.
 		"""
-		children = []
+
 		if self.unloadIsFeasible():
 			if self.caskFitsStack():
 				cost = self.getUnloadCost()
-				children.append( (self.unload(), cost + self.cost))
+				yield (self.unload(), cost + self.cost)
 		elif self.loadIsFeasible():
 			if self.stackHasCasks():
 				cask_on_CTS = self.getCaskOnThisStack()
 				cost = self.getLoadCost(cask_on_CTS)
-				children.append( (self.load(), cost + self.cost))
+				yield (self.load(), cost + self.cost)
 
 		for neighbour in self.hcb.nodes[self.CTS_pos].neighbours:
 			if self.moveIsFeasible(neighbour):
 				cost = self.getMoveCost(neighbour)
-
-				def move_to_neighbour(neighbour=neighbour): # trick to define a 'move' method for each feasible neighbour, without the need of
-					return self.move(neighbour)         # the search algorithm to pass it any arguments
-
-				children.append( (move_to_neighbour(), cost + self.cost))
-		return children
+				yield (self.move(neighbour), cost + self.cost)
 
 
 def dijkstra(_nodes, initial):
