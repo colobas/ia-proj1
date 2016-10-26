@@ -37,7 +37,7 @@ class Cask:
 class HCB:
 	"""
 	Defines the static part of the problem -> The HCB graph and the data structures where information about the casks and nodes is stored.
-	In the State Representation, we use the objects' ids to fetch their info when we need it (e.g. getting a cask's weight)
+	In the State Representation, we use the objects' ids to access this class' structures and fetch their info when we need it (e.g. getting a cask's weight)
 	"""
 	def __init__(self, filename, goalCask):
 		"""
@@ -73,13 +73,13 @@ class HCB:
 
 
 
-		for l in cask_lines: # Creation of a cask. It will be stored in a dictionary, where its key is the id.
+		for l in cask_lines: # Creation of the casks. Each cask is stored in a dictionary, where its key is its id.
 			cask_id = l[0]
 			cask_length = int(l[1])
 			cask_weight = float(l[2])
 			self.casks[cask_id] = Cask(cask_id, cask_weight, cask_length)
 
-		for l in stack_lines:
+		for l in stack_lines: #Creation of the stacks. Here we instatiate the stacks and we also initialize the initial state's "stacks" field
 			stack_id = l[0]
 			stack_size = int(l[1])
 			self.nodes[stack_id] = Stack(stack_id, stack_size)
@@ -100,7 +100,7 @@ class HCB:
 			self.nodes[l[1]].neighbours[l[2]] = float(l[3]) # add node with id = l[2] to neighbour list of node with id = l[1]
 			self.nodes[l[2]].neighbours[l[1]] = float(l[3]) # vice versa
 
-		for node in self.nodes.values():
+		for node in self.nodes.values(): # we run dijkstra's algorithm to compute the shortest path between nodes. This is used in our heuristic
 			self.paths[node.id] = dijkstra(self.nodes.values(), node)
 
 		self.initial_state = HCBStateRepresentation(None, self, 0, tuple(stacks), 'EXIT', None, '')
@@ -110,17 +110,16 @@ class HCBStateRepresentation(StateRepresentation):
 	Class for the representation of States on the search algorithm. This class extends the 'interface' StateRepresentation.
 	"""
 	def __init__(self, parent, hcb, cost, stacks, CTS_pos, cask_on_CTS, prev_operation):
-		self.stacks = stacks # tuple of stack tuples. each stack tuple -> (id, space_left, (Cx,Cy,Cz))
+		self.stacks = stacks # tuple of stack tuples. each stack tuple -> (stack_id, space_left, (Cx,Cy,Cz,...))
 		self.parent = parent # node through each we got here
 		self.CTS_pos = CTS_pos # position of the CTS. this is an Id, so we need to use it to index the dict in self.hcb.nodes
 		self.cask_on_CTS = cask_on_CTS # cask loaded on CTS. (None -> no cask). This is an Id, so we need to use it to index the dict in self.hcb.casks
 		self.cost = cost
 		self.prev_operation = prev_operation # operation that got us here
 		self.hcb = hcb
-		self.initial_state = None
 
 	def __key__(self):
-		return (self.stacks, self.CTS_pos, self.cask_on_CTS)
+		return (self.stacks, self.CTS_pos, self.cask_on_CTS) # fields that define the state. two states are equivalent if this function returns the same for both
 
 	def __hash__(self):
 		return hash(self.__key__())
@@ -133,9 +132,7 @@ class HCBStateRepresentation(StateRepresentation):
 
 	def doUnload(self, stack_id, cask_id):
 		"""
-		Handle the manipulation of the stacks and casks data structures upon the unloading of a cask. stacks and casks are passed
-		as arguments because this method is called to prepare the data structures of the State Representation obtained by performing
-		this action
+		Handle the manipulation of the stacks data structure upon the unloading of a cask
 		"""
 		_stacks = list(self.stacks)
 
@@ -155,9 +152,7 @@ class HCBStateRepresentation(StateRepresentation):
 
 	def doLoad(self, stack_id):
 		"""
-		Handle the manipulation of the stacks and casks data structures upon the unloading of a cask. stacks and casks are passed
-		as arguments because this method is called to prepare the data structures of the State Representation obtained by performing
-		this action
+		Handle the manipulation of the stacks data structure upon the loading of a cask.
 		"""
 		_stacks = list(self.stacks)
 		for i in range(0, len(_stacks)):
@@ -175,8 +170,6 @@ class HCBStateRepresentation(StateRepresentation):
 #	-> The methods that check if a given operation is feasible have to check if this operation undoes the previous one, to avoid infinite loops
 #	-> self.CTS_pos and self.cask_on_CTS are Ids, so everytime we need info on the object they represent, we have to use these Ids to index the
 #	appropriate dicts on the HCB object
-#	-> The way we fetch info on the cask to be loaded on the CTS seems strange, but that's because that cask "still isn't" the cask_on_CTS, and
-#	so we have to fetch it based on the position of the CTS (i.e. fetch the cask on top of the stack the CTS is in)
 #	-> The methods that fetch operation costs are only called after their corresponding operations have been deemed feasible, so there are no
 #	feasibility checks inside them
 
@@ -227,6 +220,7 @@ class HCBStateRepresentation(StateRepresentation):
 			return "load {} {} {}".format(self.cask_on_CTS, self.CTS_pos, cost)
 		elif self.prev_operation == ord("U"):
 			return "unload {} {} {}".format(self.parent.cask_on_CTS, self.CTS_pos, cost)
+
 # ----------------------------------- END OF GROUP OF SELF-EXPLAINING METHODS ------------------------------------
 
 
@@ -256,18 +250,23 @@ class HCBStateRepresentation(StateRepresentation):
 
 # ---------------------------------- END OF OPERATIONS IMPLEMENTATION ------------------------------------------------------
 	def heuristic(self):
+		"""
+		This method implements an heuristic to be used with a informed search algorithm. The heuristic is the following:
+			-> if there is a cask on the CTS and it is the goal cask, return the cost of moving from the CTS position to the EXIT node
+			-> if there's no cask on the CTS, or the cask on the CTS is not the goal cask, return the cost of moving to the stack
+			   where the goal cask is + the cost of moving from that stack to the exit node
+		"""
 		if self.cask_on_CTS == self.hcb.goalCask:
 			return self.hcb.paths[self.CTS_pos]['EXIT'][0]
 		else:
 			for stack in self.stacks:
 				if self.hcb.goalCask in stack[2]:
 					goalStack = stack[0]
-					return self.hcb.paths[self.CTS_pos][goalStack][0]
+					return self.hcb.paths[self.CTS_pos][goalStack][0] + self.hcb.paths[goalStack]['EXIT']
 
 	def expand(self):
 		"""
-		This method computes the operations that can be performed on this node. It stores the corresponding method on the self.operations dict, as well
-		as their description and costs.
+		This method computes the childs to which we can move from this node and returns them through an iterable
 		"""
 
 		if self.unloadIsFeasible():
@@ -286,6 +285,7 @@ class HCBStateRepresentation(StateRepresentation):
 				yield (self.move(neighbour), cost + self.cost)
 
 
+# implementation of dijkstra's algorithm, used to compute the shortest paths between nodes in the HCB
 def dijkstra(_nodes, initial):
 	costs = {initial.id: (0,'')}
 	nodes = set(_nodes)
