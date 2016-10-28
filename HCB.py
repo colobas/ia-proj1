@@ -39,7 +39,7 @@ class HCB:
 	Defines the static part of the problem -> The HCB graph and the data structures where information about the casks and nodes is stored.
 	In the State Representation, we use the objects' ids to access this class' structures and fetch their info when we need it (e.g. getting a cask's weight)
 	"""
-	def __init__(self, filename, goalCask):
+	def __init__(self, filename, goalCask, runDijkstra):
 		"""
 		Initialization of the problem. Here we read the file and store its information in the appropriate structures. We also create the
 		State representation of the initial state.
@@ -49,6 +49,7 @@ class HCB:
 		self.nodes['EXIT'] = Exit()
 		self.paths = dict()
 		self.goalCask = goalCask
+		self.goalStack = None
 		stacks = []
 		lines = []
 		try:
@@ -84,6 +85,9 @@ class HCB:
 			stack_size = int(l[1])
 			self.nodes[stack_id] = Stack(stack_id, stack_size)
 			casks = l[2:]
+			if goalCask in casks:
+				self.goalStack = stack_id
+
 			space_left = stack_size
 			for cask in casks:
 				space_left -= self.casks[cask].length
@@ -100,8 +104,10 @@ class HCB:
 			self.nodes[l[1]].neighbours[l[2]] = float(l[3]) # add node with id = l[2] to neighbour list of node with id = l[1]
 			self.nodes[l[2]].neighbours[l[1]] = float(l[3]) # vice versa
 
-		for node in self.nodes.values(): # we run dijkstra's algorithm to compute the shortest path between nodes. This is used in our heuristic
-			self.paths[node.id] = dijkstra(self.nodes.values(), node)
+
+		if runDijkstra: # we only need this if we're using an informed search algorithm
+			for node in self.nodes.values(): # we run dijkstra's algorithm to compute the shortest path between nodes. This is used in our heuristic
+				self.paths[node.id] = dijkstra(self.nodes.values(), node)
 
 		self.initial_state = HCBStateRepresentation(None, self, 0, tuple(stacks), 'EXIT', None, '')
 
@@ -188,8 +194,13 @@ class HCBStateRepresentation(StateRepresentation):
 		for stack in self.stacks:
 			if stack[0] == self.CTS_pos:
 				return stack[1] < self.hcb.nodes[self.CTS_pos].size
+
 	def moveIsFeasible(self, neighbour):
-		return (self.parent == None) or not ((neighbour == self.parent.CTS_pos) and self.prev_operation == ord("M"))
+		if self.prev_operation != ord('M'):
+			return True
+		elif neighbour != self.parent.CTS_pos:
+			return True
+		return False 
 
 	def getCaskOnThisStack(self):
 		for stack in self.stacks:
@@ -228,7 +239,6 @@ class HCBStateRepresentation(StateRepresentation):
 # The following group of methods implements the actual operations to be performed on this node. They're only ever called after they've been deemed feasible,
 # so there's no feasibility checks inside them. They each compute the appropriate arguments to instantiate the StateRepresentation of the node created by performing
 # that operation and then instantiate and return that node.
-
 	def move(self, to):
 		next_cost = self.getMoveCost(to) + self.cost
 		next_CTS_pos = to
@@ -259,30 +269,29 @@ class HCBStateRepresentation(StateRepresentation):
 		if self.cask_on_CTS == self.hcb.goalCask:
 			return self.hcb.paths[self.CTS_pos]['EXIT'][0]
 		else:
-			for stack in self.stacks:
-				if self.hcb.goalCask in stack[2]:
-					goalStack = stack[0]
-					return self.hcb.paths[self.CTS_pos][goalStack][0] + self.hcb.paths[goalStack]['EXIT']
+			return self.hcb.paths[self.CTS_pos][self.hcb.goalStack][0] + self.hcb.paths[self.hcb.goalStack]['EXIT'][0]
 
 	def expand(self):
 		"""
 		This method computes the childs to which we can move from this node and returns them through an iterable
 		"""
-
+		children = []
 		if self.unloadIsFeasible():
 			if self.caskFitsStack():
 				cost = self.getUnloadCost()
-				yield (self.unload(), cost + self.cost)
+				children.append( (self.unload(), cost + self.cost))
 		elif self.loadIsFeasible():
 			if self.stackHasCasks():
 				cask_on_CTS = self.getCaskOnThisStack()
 				cost = self.getLoadCost(cask_on_CTS)
-				yield (self.load(), cost + self.cost)
+				children.append( (self.load(), cost + self.cost))
 
 		for neighbour in self.hcb.nodes[self.CTS_pos].neighbours:
 			if self.moveIsFeasible(neighbour):
 				cost = self.getMoveCost(neighbour)
-				yield (self.move(neighbour), cost + self.cost)
+				children.append( (self.move(neighbour), cost + self.cost))
+
+		return children
 
 
 # implementation of dijkstra's algorithm, used to compute the shortest paths between nodes in the HCB

@@ -29,7 +29,6 @@ class StateRepresentation:
 		the nodes to which the solver can go from this node.
 		"""
 		pass
-
 def uniformCost(root_state):
 	"""
 	This function implements the Uniform Cost algorithm. It is an uninformed search algorithm, so it only takes each node's cost into account.
