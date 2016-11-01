@@ -47,7 +47,6 @@ def uniformCost(root_state):
                 cur_node = fringe.pop()[0]  # get cheapest node to visit from the fringe
 
                 if cur_node.checksol(): # check if the state is a solution to the problem
-                        print("node count={}".format(len(explored)))
                         return cur_node.backtrack_sol(root_state)
 
                 explored.add(cur_node.__key__())
@@ -77,7 +76,6 @@ def AStar(root_state):
                 cur_node = fringe.pop()[0]  # get cheapest node to visit from the fringe
 
                 if cur_node.checksol(): # check if the state is a solution to the problem
-                        print("node count={}".format(len(explored)))
                         return cur_node.backtrack_sol(root_state)
 
 
